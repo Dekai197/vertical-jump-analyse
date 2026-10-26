@@ -20,10 +20,38 @@ def test_lean_from_vertical():
     assert geometry.lean_from_vertical([0, 10], [-10, 0]) == pytest.approx(45)
 
 
-def test_fill_gaps_interpolates_and_holds_edges():
+def test_fill_gaps_interpolates_inside_only():
     x = np.array([np.nan, 1.0, np.nan, 3.0, np.nan])
     ok = np.isfinite(x)
-    np.testing.assert_allclose(filters.fill_gaps(x, ok), [1, 1, 2, 3, 3])
+    np.testing.assert_allclose(filters.fill_gaps(x, ok), [np.nan, 1, 2, 3, np.nan])
+
+
+def test_fill_gaps_respects_max_gap_and_per_landmark_mask():
+    x = np.arange(10, dtype=float)
+    ok = np.ones(10, bool)
+    ok[2:3] = False   # 1-sample gap -> filled
+    ok[5:9] = False   # 4-sample gap -> left NaN
+    out = filters.fill_gaps(x, ok, max_gap=2)
+    assert out[2] == 2 and np.all(np.isnan(out[5:9])) and out[9] == 9
+    xy = np.random.default_rng(0).normal(size=(6, 3, 2))
+    m = np.ones((6, 3), bool)
+    m[2, 1] = False
+    filled = filters.fill_gaps(xy, m)
+    np.testing.assert_allclose(filled[2, 1], (xy[1, 1] + xy[3, 1]) / 2)
+    np.testing.assert_allclose(filled[2, 0], xy[2, 0])
+
+
+def test_smooth_does_not_bridge_or_erode_nan_gaps():
+    y = np.r_[np.linspace(0, 1, 20), [np.nan] * 5, np.linspace(1, 0, 20)]
+    out = filters.smooth(y, 7)
+    assert np.isnan(out[20:25]).all()
+    assert np.isfinite(out[:20]).all() and np.isfinite(out[25:]).all()
+
+
+def test_find_peaks_prominence():
+    x = np.array([0, 5, 0, 1, 0.5, 1.2, 0, 8, 0], dtype=float)
+    assert filters.find_peaks(x, 3) == [1, 7]
+    assert 5 in filters.find_peaks(x, 0.5)
 
 
 def test_savgol_preserves_quadratic_and_reduces_noise():

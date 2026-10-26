@@ -157,6 +157,10 @@ def dashed_vline(frame, x, y0, y1, color=GREY, dash=None) -> None:
 
 
 def banner(frame, text, color=YELLOW) -> None:
-    """Large centred label at the top (used on freeze frames)."""
-    s = ui_scale(frame)
-    put_text(frame, text, (frame.shape[1] / 2, 30 * s), 1.8, color, anchor="ct")
+    """Large centred label below the HUD area (used on freeze frames); shrinks to fit."""
+    scale = 1.8
+    s = ui_scale(frame) * 0.75 * scale
+    tw = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, s, 2)[0][0]
+    if tw > frame.shape[1] * 0.92:
+        scale *= frame.shape[1] * 0.92 / tw
+    put_text(frame, text, (frame.shape[1] / 2, frame.shape[0] * 0.13), scale, color, anchor="ct")
