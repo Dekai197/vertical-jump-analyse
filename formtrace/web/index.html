@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>formtrace</title>
+<style>
+  :root {
+    --bg: #0b0d12; --panel: #141821; --panel2: #1b2030; --line: #2a3142;
+    --text: #e8ecf3; --muted: #9aa3b5; --cyan: #00e6ff; --magenta: #ff3cff;
+    --lime: #78ff8c; --orange: #ffaa00; --red: #ff5d5d;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: .5px;
+    background: linear-gradient(90deg, var(--cyan), var(--magenta)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  header p { margin: 0; color: var(--muted); }
+  .ver { color: var(--muted); font-size: 12px; margin-left: auto; }
+  section.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; }
+  h2 { font-size: 16px; margin: 0 0 12px; color: var(--text); }
+  h3 { font-size: 15px; margin: 18px 0 8px; }
+  .drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 36px 16px; text-align: center;
+    cursor: pointer; transition: border-color .15s, background .15s; }
+  .drop:hover, .drop.over { border-color: var(--cyan); background: rgba(0,230,255,.05); }
+  .drop strong { display: block; font-size: 17px; margin-bottom: 4px; }
+  .drop span { color: var(--muted); }
+  .hidden { display: none !important; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .seg { display: inline-flex; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; flex-wrap: wrap; }
+  .seg button { background: transparent; border: 0; color: var(--muted); padding: 8px 14px; border-radius: 8px; cursor: pointer; font: inherit; }
+  .seg button.on { background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--cyan); }
+  label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  input, select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; min-width: 120px; }
+  button.go { background: linear-gradient(90deg, var(--cyan), var(--magenta)); color: #0b0d12; border: 0; font-weight: 700;
+    padding: 11px 22px; border-radius: 10px; cursor: pointer; font-size: 15px; }
+  button.go:disabled { opacity: .5; cursor: progress; }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; font-size: 13px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  .pick { position: relative; display: inline-block; max-width: 100%; margin-top: 10px; cursor: crosshair; }
+  .pick img { display: block; max-width: 100%; max-height: 60vh; border-radius: 10px; }
+  .pick .dot { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+    border: 3px solid var(--cyan); box-shadow: 0 0 12px var(--cyan); pointer-events: none; }
+  .bar { height: 10px; background: var(--panel2); border-radius: 6px; overflow: hidden; margin: 10px 0 6px; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--magenta)); transition: width .3s; }
+  .err { color: var(--red); white-space: pre-wrap; }
+  .grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  @media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  video { width: 100%; max-height: 75vh; background: #000; border-radius: 10px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .kpi { background: var(--panel2); border-radius: 10px; padding: 10px 12px; }
+  .kpi .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi .k { color: var(--muted); font-size: 12px; }
+  ul { padding-left: 18px; margin: 6px 0; }
+  li { margin: 3px 0; }
+  .flags li { color: var(--orange); }
+  .muted, .caveats li { color: var(--muted); font-size: 13px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; }
+  a { color: var(--cyan); }
+  .downloads a { margin-right: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>formtrace</h1>
+    <p>把手机拍的训练视频变成看得见的数据</p>
+    <span class="ver" id="ver"></span>
+  </header>
+
+  <section class="card" id="s-upload">
+    <h2>1 · 选择视频</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="选择视频文件">
+      <strong>把视频拖到这里，或点击选择</strong>
+      <span>正侧面、手机固定不动、全身入镜（含脚）；起跳建议慢动作 120/240 fps</span>
+    </div>
+    <input type="file" id="file" accept="video/*" class="hidden">
+    <div id="up-prog" class="hidden"><div class="bar"><div id="up-bar"></div></div><div class="muted" id="up-text"></div></div>
+    <p class="err" id="up-err"></p>
+  </section>
+
+  <section class="card hidden" id="s-opts">
+    <h2>2 · 设置</h2>
+    <p class="muted" id="vinfo"></p>
+    <div class="row">
+      <div class="seg" id="mode">
+        <button data-m="squat" class="on">深蹲 + 杠铃轨迹</button>
+        <button data-m="jump">助跑起跳</button>
+        <button data-m="pose">通用骨架</button>
+      </div>
+      <label class="f">模型
+        <select id="model"><option value="lite">lite（最快）</option><option value="full" selected>full（默认）</option><option value="heavy">heavy（最准，最慢）</option></select>
+      </label>
+    </div>
+    <div id="opt-squat">
+      <div class="row" style="margin-top:12px">
+        <label class="f">杠铃片直径 cm（可选，用于换算厘米和 m/s）<input id="plate" type="number" min="5" max="100" step="0.5" placeholder="例如 45"></label>
+      </div>
+      <p class="hint">默认自动识别杠铃片。若结果里杠铃轨迹不对，点一下下面画面中<b>杠铃片的中心</b>再重新分析。
+        <button class="ghost" id="clear-bar">清除标记</button></p>
+      <div class="pick" id="pick"><img id="frame" alt="视频第一帧"><div class="dot hidden" id="dot"></div></div>
+    </div>
+    <div id="opt-jump" class="hidden">
+      <div class="row" style="margin-top:12px">
+        <label class="f">身高 cm（可选，用于近似换算 m/s）<input id="height" type="number" min="80" max="250" step="1" placeholder="例如 180"></label>
+      </div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="go" id="go">开始分析</button>
+    </div>
+    <div id="run" class="hidden"><div class="bar"><div id="run-bar"></div></div><div class="muted" id="run-text"></div></div>
+    <p class="err" id="run-err"></p>
+  </section>
+
+  <section class="card hidden" id="s-result">
+    <h2>3 · 结果</h2>
+    <div class="grid">
+      <div><video id="video" controls playsinline preload="metadata"></video></div>
+      <div>
+        <div class="kpis" id="kpis"></div>
+        <div id="flags-wrap" class="hidden"><h3>提示（启发式，非诊断）</h3><ul class="flags" id="flags"></ul></div>
+      </div>
+    </div>
+    <div id="table-wrap" class="table-wrap hidden"><h3>逐次数据</h3><table id="table"></table></div>
+    <div id="sections"></div>
+    <h3>数据可信度</h3>
+    <ul class="caveats" id="caveats"></ul>
+    <p class="downloads" id="downloads"></p>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
+  let job = null, mode = "squat", bar = null, poll = null;
+
+  fetch("/api/version").then(r => r.json()).then(v => { $("ver").textContent = "v" + v.version; }).catch(() => {});
+
+  // ---------- upload ----------
+  const drop = $("drop"), file = $("file");
+  drop.addEventListener("click", () => file.click());
+  drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") file.click(); });
+  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => { if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); });
+  file.addEventListener("change", () => { if (file.files[0]) upload(file.files[0]); });
+
+  function upload(f) {
+    $("up-err").textContent = "";
+    $("s-opts").classList.add("hidden"); $("s-result").classList.add("hidden");
+    $("up-prog").classList.remove("hidden");
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
+    xhr.setRequestHeader("X-Filename", encodeURIComponent(f.name));
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        $("up-bar").style.width = (100 * e.loaded / e.total).toFixed(1) + "%";
+        $("up-text").textContent = `上传中 ${(e.loaded / 1048576).toFixed(1)} / ${(e.total / 1048576).toFixed(1)} MB`;
+      }
+    };
+    xhr.onload = () => {
+      let r = {};
+      try { r = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status !== 200) { $("up-err").textContent = r.error || ("上传失败 " + xhr.status); return; }
+      job = r; bar = null; $("dot").classList.add("hidden");
+      $("up-text").textContent = `已上传：${r.name}`;
+      $("vinfo").textContent = `${r.name} · ${r.width}×${r.height} · 标称 ${r.fps.toFixed(1)} fps · 约 ${r.frames} 帧`;
+      $("frame").src = r.frame_url;
+      $("s-opts").classList.remove("hidden");
+    };
+    xhr.onerror = () => { $("up-err").textContent = "上传失败（网络错误）"; };
+    xhr.send(f);
+  }
+
+  // ---------- options ----------
+  $("mode").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    mode = b.dataset.m;
+    [...$("mode").children].forEach(x => x.classList.toggle("on", x === b));
+    $("opt-squat").classList.toggle("hidden", mode !== "squat");
+    $("opt-jump").classList.toggle("hidden", mode !== "jump");
+  });
+  $("pick").addEventListener("click", (e) => {
+    const img = $("frame"), r = img.getBoundingClientRect();
+    if (!job || !img.naturalWidth) return;
+    const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
+    bar = [Math.round(fx * job.width), Math.round(fy * job.height)];
+    const dot = $("dot"); dot.style.left = (fx * 100) + "%"; dot.style.top = (fy * 100) + "%"; dot.classList.remove("hidden");
+  });
+  $("clear-bar").addEventListener("click", (e) => { e.preventDefault(); bar = null; $("dot").classList.add("hidden"); });
+
+  // ---------- analyse ----------
+  const STAGE = { extract: "解析帧（姿态 / 杠铃）", render: "渲染叠加视频", done: "完成" };
+  $("go").addEventListener("click", async () => {
+    if (!job) return;
+    $("run-err").textContent = "";
+    const body = { id: job.id, mode, model: $("model").value };
+    if (mode === "squat") { body.bar = bar; body.plate_cm = $("plate").value || null; }
+    if (mode === "jump") { body.height_cm = $("height").value || null; }
+    const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $("run-err").textContent = j.error || ("提交失败 " + r.status); return; }
+    $("go").disabled = true; $("run").classList.remove("hidden"); $("s-result").classList.add("hidden");
+    clearInterval(poll); poll = setInterval(check, 700); check();
+  });
+
+  async function check() {
+    const r = await fetch(`/api/job/${job.id}`); const j = await r.json();
+    const pct = Math.round(100 * (j.progress || 0));
+    $("run-bar").style.width = pct + "%";
+    $("run-text").textContent = j.status === "queued" ? "排队中…" : `${STAGE[j.stage] || "准备中"} ${pct}%`;
+    if (j.status === "error") { clearInterval(poll); $("go").disabled = false; $("run-err").textContent = j.error; }
+    if (j.status === "done") { clearInterval(poll); $("go").disabled = false; $("run-text").textContent = "完成"; show(j); }
+  }
+
+  // ---------- results ----------
+  const fmt = (v, unit = "", d = null) => v == null ? "—" : (d == null ? v : Number(v).toFixed(d)) + unit;
+  const vel = (o) => o == null ? "—" : (o.m_s != null ? o.m_s + " m/s" : o.px_s + " px/s");
+  const pctChange = (v) => v == null ? "—" : (v > 0 ? "−" + v + "%" : "+" + Math.abs(v) + "%");
+  const len = (o) => o == null || o.px == null ? "—" : (o.cm != null ? o.cm + " cm" : o.pct_leg + "% 腿长");
+
+  function kpi(k, v) { const d = el("div", null, "kpi"); d.append(el("div", v, "v"), el("div", k, "k")); return d; }
+
+  function show(j) {
+    const rep = j.report, s = rep.summary || {};
+    const t = Date.now();
+    $("video").src = j.files.includes("overlay.mp4") ? `/api/job/${j.id}/overlay.mp4?t=${t}` : "";
+    const K = $("kpis"); K.replaceChildren();
+    if (rep.mode === "squat") {
+      K.append(kpi("识别次数", fmt(s.reps)), kpi("全组最小膝角", fmt(s.deepest_knee_angle_deg, "°")),
+               kpi("杠铃轨迹来源", s.bar_source === "plate_auto" ? "自动识别杠铃片" : s.bar_source === "plate_manual" ? "手动标记杠铃片" : s.bar_source === "wrist_proxy" ? "手腕近似" : s.bar_source),
+               kpi("追踪覆盖率", fmt(s.bar_tracking_coverage == null ? null : Math.round(100 * s.bar_tracking_coverage), "%")));
+    } else if (rep.mode === "jump") {
+      const lo = (s.knee_at_lowest_hip || {}), near = Object.values(lo).find(x => x.near_camera);
+      K.append(kpi("最后一步触地时间", fmt(s.final_step_contact_s, " s")),
+               kpi("双脚制动-起跳", fmt(s.plant_contact_s, " s")),
+               kpi("制动结束近侧膝角", near ? fmt(near.deg, "°") : "—"),
+               kpi("倒数第二步速度", pctChange(s.velocity_change_penultimate_pct)),
+               kpi("离地前速度变化", pctChange(s.velocity_change_plant_pct)),
+               kpi("腾空 / 推算高度", s.flight_time_s == null ? "—" : `${s.flight_time_s}s / ${Math.round(s.jump_height_from_flight_cm)}cm`));
+    } else {
+      K.append(kpi("最小膝角", fmt(s.min_knee_angle_deg, "°")), kpi("出现时间", fmt(s.min_knee_angle_t_s, " s")),
+               kpi("最小髋角", fmt(s.min_hip_angle_deg, "°")));
+    }
+    K.append(kpi("有效帧率", fmt(rep.meta.effective_fps, " fps")), kpi("±1 帧误差", fmt(Math.round(1000 / rep.meta.effective_fps), " ms")));
+
+    const flags = rep.flags || [];
+    $("flags").replaceChildren(...flags.map(f => el("li", f)));
+    $("flags-wrap").classList.toggle("hidden", !flags.length);
+
+    const tw = $("table-wrap"), tb = $("table"); tb.replaceChildren();
+    if (rep.mode === "squat" && rep.reps && rep.reps.length) {
+      const head = ["#", "下蹲 s", "起身 s", "最小膝角", "过平行(近似)", "上身/髋上升比", "杠铃摆动", "相对脚掌中点", "向心均速"];
+      const tr = el("tr"); head.forEach(h => tr.append(el("th", h))); tb.append(tr);
+      rep.reps.forEach(r => {
+        const b = r.bar || {};
+        const row = [r.rep, r.descent_s, r.ascent_s, fmt(r.min_knee_angle_deg, "°"),
+          r.hip_below_knee == null ? "—" : (r.hip_below_knee ? "是" : "否"), fmt(r.hip_rise_index),
+          len(b.horizontal_range), len(b.offset_from_midfoot_at_bottom), fmt(b.mean_concentric_velocity_mps, " m/s")];
+        const tr = el("tr"); row.forEach(c => tr.append(el("td", String(c)))); tb.append(tr);
+      });
+      tw.classList.remove("hidden");
+    } else tw.classList.add("hidden");
+
+    const S = $("sections"); S.replaceChildren();
+    (rep.sections || []).forEach(sec => {
+      S.append(el("h3", sec.title));
+      const ul = el("ul"); sec.lines.forEach(l => ul.append(el("li", l.replace(/^-\s*/, "")))); S.append(ul);
+    });
+    $("caveats").replaceChildren(...[...(rep.quality || []), ...(rep.caveats || [])].map(c => el("li", c)));
+    const D = $("downloads"); D.replaceChildren();
+    j.files.forEach(n => { const a = el("a", "下载 " + n); a.href = `/api/job/${j.id}/${n}`; a.download = n; D.append(a); });
+    $("s-result").classList.remove("hidden");
+    $("s-result").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+})();
+</script>
+</body>
+</html>

@@ -86,8 +86,9 @@ class Session:
         """Body-size scale in px: median near-side hip->knee->ankle length.
 
         If the feet are never in frame, falls back to 1.70 x trunk length
-        (Winter's anthropometric segment proportions: hip-to-ankle ~0.491 H,
-        shoulder-to-hip ~0.288 H) and records that in ``leg_length_source``.
+        (hip-to-ankle ~0.491 H vs shoulder-to-hip ~0.288 H, Drillis & Contini
+        proportions as reproduced by Winter -- values UNVERIFIED against the
+        original table) and records that in ``leg_length_source``.
         """
         L = (geometry.dist(self.joint("hip"), self.joint("knee"))
              + geometry.dist(self.joint("knee"), self.joint("ankle")))
@@ -199,7 +200,8 @@ class Freeze:
 
 def render(session: Session, out_path: str,
            draw: Callable[[np.ndarray, int], None],
-           freezes: list[Freeze] | None = None) -> str:
+           freezes: list[Freeze] | None = None,
+           progress: Callable[[int], None] | None = None) -> str:
     t0 = time.perf_counter()
     fps = session.info.effective_fps
     writer = VideoWriter(out_path, fps, (session.info.width, session.info.height))
@@ -211,6 +213,8 @@ def render(session: Session, out_path: str,
             break
         draw(frame, i)
         writer.write(frame)
+        if progress:
+            progress(i)
         for fz in by_idx.get(i, []):
             still = frame.copy()
             fz.draw(still)

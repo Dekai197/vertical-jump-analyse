@@ -25,6 +25,10 @@ def quality_notes(meta: dict) -> list[str]:
     if meta["pose_detection_rate"] < 0.9:
         notes.append(f"只有 {meta['pose_detection_rate'] * 100:.0f}% 的帧检测到人体，缺失帧由插值补齐，结果可信度下降。")
     notes.append("所有角度均为 2D 投影角：只有手机正对身体侧面、与运动平面垂直时才接近真实关节角。")
+    if meta.get("leg_length_source") not in (None, "measured"):
+        notes.append("脚始终不在画面内：“腿长”按 1.70 × 躯干长度估算（人体比例近似值，未经核实），"
+                     "以“% 腿长”表示的距离只能作相对比较。")
+    notes.append("本工具尚未与测力台、三维动捕等金标准做过对比验证，数值适合看趋势和自我对比，不宜当作精确测量。")
     return notes
 
 

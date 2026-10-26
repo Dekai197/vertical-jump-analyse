@@ -23,7 +23,9 @@ from .landmarks import SIDES
 from .pipeline import Freeze, Session
 
 G = 9.81  # m/s^2
-# Winter (2009) segment proportions: hip-to-ankle (thigh + shank) ~= 0.491 x body height.
+# Hip-to-ankle (thigh + shank) ~= 0.491 x body height: Drillis & Contini (1966) proportions as
+# reproduced in Winter's textbook (Fig. 4.1). UNVERIFIED: the value is from memory; the original
+# table could not be checked when this was written. Only used for the optional --height-cm scale.
 LEG_FRACTION_OF_HEIGHT = 0.491
 
 
@@ -235,7 +237,8 @@ def analyze(s: Session, px_per_m: float | None = None, scale_source: str = "none
         "腾空高度用 h = g·t²/8 由腾空时间推算，假设起跳与落地时身体姿态相同；落地时屈膝更早会让结果偏大。",
     ]
     if scale_source == "height":
-        caveats.append("米制速度按“髋→踝长度 ≈ 身高 × 0.491”（Winter 人体测量比例）换算，个体差异会带来额外误差（未量化）。")
+        caveats.append("米制速度按“髋→踝长度 ≈ 身高 × 0.491”换算：该比例取自 Drillis & Contini 人体比例（经 Winter 教材转引）"
+                       "的常用近似值，【未经核实原表】；且个体差异会带来额外误差（未量化）。")
     if fps < 100:
         caveats.append("触地时间这类 0.1–0.5 s 的事件建议用 120/240 fps 慢动作拍摄。")
     for key, what in (("velocity_change_penultimate_pct", "助跑 → 最后一步着地"),

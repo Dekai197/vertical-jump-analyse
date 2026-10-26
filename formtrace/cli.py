@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
-
-import numpy as np
 
 # Quiet MediaPipe / absl C++ logging before it is imported.
 os.environ.setdefault("GLOG_minloglevel", "2")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
-from . import __version__, barbell, jump, pipeline, posemode, report, squat
+from . import __version__, analysis, report
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -50,6 +47,11 @@ def _parser() -> argparse.ArgumentParser:
     f.add_argument("video")
     f.add_argument("--at", type=int, default=0, help="帧号（默认 0）")
     f.add_argument("-o", "--out", default="frame_grid.jpg")
+    w = sub.add_parser("serve", help="启动本地网页界面（拖拽视频即可分析）")
+    w.add_argument("--host", default="127.0.0.1", help="监听地址（默认仅本机 127.0.0.1）")
+    w.add_argument("--port", type=int, default=8765)
+    w.add_argument("--workdir", default=None, help="上传与结果存放目录（默认 ~/.cache/formtrace/web）")
+    w.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     return p
 
 
@@ -82,101 +84,36 @@ def _floats(*counts):
     return parse
 
 
-def _public(obj):
-    """Drop internal keys (leading underscore) before writing JSON."""
-    if isinstance(obj, dict):
-        return {k: _public(v) for k, v in obj.items() if not k.startswith("_")}
-    if isinstance(obj, list):
-        return [_public(v) for v in obj]
-    return obj
+def _options(args) -> analysis.Options:
+    return analysis.Options(
+        mode=args.mode, model=args.model, model_path=args.model_path, video=not args.no_video,
+        csv=args.csv, bar=args.bar, bar_frame=args.bar_frame, no_bar=args.no_bar,
+        plate_cm=args.plate_cm, calib=args.calib, height_cm=args.height_cm, cache=not args.no_cache)
 
 
-def _progress(n_hint: int | None = None):
-    def cb(i: int) -> None:
-        if i % 30 == 0:
-            print(f"\r  解析帧 {i}…", end="", file=sys.stderr, flush=True)
+def _cli_progress():
+    last = {"stage": None}
+
+    def cb(stage: str, frac: float) -> None:
+        if stage != last["stage"]:
+            if last["stage"]:
+                print("", file=sys.stderr)
+            last["stage"] = stage
+        print(f"\r  {analysis.STAGES.get(stage, stage)} {frac * 100:5.1f}%", end="", file=sys.stderr, flush=True)
     return cb
-
-
-def run_analyze(args) -> dict:
-    out = args.out or os.path.join("out", os.path.splitext(os.path.basename(args.video))[0])
-    os.makedirs(out, exist_ok=True)
-    print(f"[1/2] 姿态提取：{args.video}", file=sys.stderr)
-    cache = None if args.no_cache else os.path.join(out, "pose_cache.npz")
-    consumers = []
-    tracker = None
-    bar = None
-    bar_cache = None if args.no_cache else os.path.join(out, "bar_cache.npz")
-    if args.mode == "squat" and not args.no_bar:
-        bar_key = f"{pipeline.video_key(args.video)}|{args.bar}|{args.bar_frame}|bar-v1"
-        bar = barbell.load_cache(bar_cache, bar_key)
-        if bar is None:
-            tracker = barbell.BarTracker(args.bar, args.bar_frame)
-            consumers.append(tracker)
-    s = pipeline.extract(args.video, args.model, args.model_path, consumers=consumers,
-                         progress=_progress(), cache_path=cache)
-    print("", file=sys.stderr)
-    if tracker is not None:
-        bar = tracker.result()
-        if bar_cache:
-            barbell.save_cache(bar_cache, bar_key, bar)
-
-    result = {"version": __version__, "mode": args.mode, "meta": None}
-    extra_csv = {}
-    if args.mode == "squat":
-        if bar is None:
-            bar = barbell.BarTrack(np.full((s.info.n_frames, 2), np.nan), None, "none")
-        if bar.coverage < 0.5:
-            bar = barbell.wrist_proxy(s.joint("wrist"))
-        calib = squat.make_calib(bar, args.plate_cm, args.calib)
-        res = squat.analyze(s, bar, calib)
-        result.update(summary=res["summary"], reps=res["reps"], flags=res["flags"],
-                      caveats=res["caveats"], sections=squat.sections(res))
-        drawer, freezes = squat.make_drawer(s, bar, res)
-        extra_csv = {"bar_x": res["_bar_xy"][:, 0], "bar_y": res["_bar_xy"][:, 1]}
-    elif args.mode == "jump":
-        if args.calib:
-            x1, y1, x2, y2, cm = args.calib
-            px_per_m, src = float(np.hypot(x2 - x1, y2 - y1)) / (cm / 100.0), "two_points"
-        elif args.height_cm:
-            px_per_m, src = jump.scale_from_height(s, args.height_cm), "height"
-        else:
-            px_per_m, src = None, "none"
-        res = jump.analyze(s, px_per_m, src)
-        result.update(summary=res["summary"], events=res["events"], flags=res["flags"],
-                      caveats=res["caveats"], sections=jump.sections(res))
-        drawer, freezes = jump.make_drawer(s, res)
-        if "_series" in res:
-            extra_csv = {"hip_vx_px_s": res["_series"]["vx"],
-                         "contact_left": res["_series"]["contact_l"].astype(float),
-                         "contact_right": res["_series"]["contact_r"].astype(float)}
-    else:
-        result["summary"] = posemode.summarize(s)
-        drawer, freezes = posemode.make_drawer(s), []
-
-    files = {}
-    if not args.no_video:
-        print("[2/2] 渲染叠加视频…", file=sys.stderr)
-        files["video"] = pipeline.render(s, os.path.join(out, "overlay.mp4"), drawer, freezes)
-    if args.csv:
-        files["csv"] = os.path.join(out, "series.csv")
-        pipeline.write_series_csv(s, files["csv"], extra_csv)
-    result["meta"] = pipeline.meta(s)
-    result["files"] = files
-    files["json"] = os.path.join(out, "report.json")
-    files["markdown"] = os.path.join(out, "report.md")
-    with open(files["json"], "w", encoding="utf-8") as f:
-        json.dump(_public(result), f, ensure_ascii=False, indent=2)
-    with open(files["markdown"], "w", encoding="utf-8") as f:
-        f.write(report.markdown(result))
-    return result
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.cmd == "analyze":
-        res = run_analyze(args)
+        out = args.out or os.path.join("out", os.path.splitext(os.path.basename(args.video))[0])
+        res = analysis.run(args.video, out, _options(args), _cli_progress())
+        print("", file=sys.stderr)
         print(report.markdown(res))
+        return 0
+    if args.cmd == "serve":
+        from . import server
+        server.serve(args.host, args.port, args.workdir, open_browser=not args.no_browser)
         return 0
     if args.cmd == "frame":
         print(run_frame(args))

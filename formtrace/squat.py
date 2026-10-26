@@ -209,7 +209,8 @@ def analyze(s: Session, bar: BarTrack, calib: Calib, hip_rise_warn: float = 0.7,
     if bar.source == "wrist_proxy":
         caveats.append("未找到杠铃片，轨迹改用近侧手腕代替：深蹲时手腕与杠铃并不重合，轨迹形状仅供参考。")
     if calib.source == "plate":
-        caveats.append("厘米/速度换算假设杠铃片直径为你输入的值（标准 20/25 kg 片通常为 45 cm，请以实物为准）。")
+        caveats.append("厘米/速度换算假设杠铃片直径为你输入的值。举重比赛用杠铃片常见规格为 450 mm"
+                       "（该数值来自厂商页面转述，未查到 IWF 规则原文），健身房铁片尺寸差异大，请以实物测量为准。")
     elif calib.source == "none":
         caveats.append("未标定比例尺：距离以像素和“腿长百分比”表示，速度不输出。可用 --plate-cm 或 --calib 标定。")
     return {"summary": summary, "reps": reps, "flags": flags, "caveats": caveats,

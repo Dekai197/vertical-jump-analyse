@@ -26,3 +26,6 @@ version = { attr = "formtrace.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["formtrace*"]
+
+[tool.setuptools.package-data]
+formtrace = ["web/*.html"]
