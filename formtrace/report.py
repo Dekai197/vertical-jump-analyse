@@ -56,4 +56,22 @@ LABELS = {
     "min_knee_angle_deg": "最小膝关节夹角（180°=伸直）",
     "min_knee_angle_t_s": "出现时间 (s)",
     "min_hip_angle_deg": "最小髋关节夹角",
+    # squat
+    "reps": "识别到的次数",
+    "rep_signal": "分次依据（bar=杠铃轨迹，hip=髋部轨迹）",
+    "trunk_upper_point": "躯干上端参考点",
+    "bar_source": "杠铃轨迹来源",
+    "bar_tracking_coverage": "杠铃追踪覆盖率",
+    "calibration": "比例尺标定方式",
+    "px_per_cm": "每厘米像素数",
+    "deepest_knee_angle_deg": "全组最小膝关节夹角（°）",
+    # jump
+    "final_step_contact_s": "最后一步触地时间 (s)",
+    "plant_contact_s": "双脚制动-起跳阶段时长 (s)",
+    "time_resolution_s": "时间分辨率 (s/帧)",
+    "velocity_change_penultimate_pct": "倒数第二步水平速度变化（正=下降）%",
+    "velocity_change_plant_pct": "最后一步→离地水平速度变化（正=下降）%",
+    "scale": "米制换算依据",
+    "flight_time_s": "腾空时间 (s)",
+    "jump_height_from_flight_cm": "腾空时间推算的重心腾起高度 (cm)",
 }

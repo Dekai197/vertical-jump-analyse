@@ -13,7 +13,7 @@ import numpy as np
 os.environ.setdefault("GLOG_minloglevel", "2")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
-from . import __version__, barbell, pipeline, posemode, report, squat
+from . import __version__, barbell, jump, pipeline, posemode, report, squat
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -23,8 +23,9 @@ def _parser() -> argparse.ArgumentParser:
 
     a = sub.add_parser("analyze", help="分析一段视频，输出叠加视频 + 报告")
     a.add_argument("video")
-    a.add_argument("--mode", choices=["pose", "squat"], default="pose",
-                   help="pose=通用骨架+关节角；squat=深蹲（次数/深度/先抬臀/杠铃轨迹）")
+    a.add_argument("--mode", choices=["pose", "squat", "jump"], default="pose",
+                   help="pose=通用骨架+关节角；squat=深蹲（次数/深度/先抬臀/杠铃轨迹）；"
+                        "jump=助跑起跳（触地时间/制动膝角/水平速度损失/腾空）")
     a.add_argument("-o", "--out", default=None, help="输出目录（默认 ./out/<视频名>）")
     a.add_argument("--model", choices=["lite", "full", "heavy"], default="full",
                    help="MediaPipe 模型档位：lite 最快，heavy 最准（默认 full）")
@@ -40,6 +41,9 @@ def _parser() -> argparse.ArgumentParser:
                    help="杠铃片直径（厘米），用于把像素换算成厘米和 m/s，例如 45")
     g.add_argument("--calib", type=_floats(5, 5), default=None, metavar="X1,Y1,X2,Y2,CM",
                    help="画面里两点的像素坐标及其真实距离（厘米），用于标定比例尺")
+    j = a.add_argument_group("起跳（jump 模式）")
+    j.add_argument("--height-cm", type=float, default=None,
+                   help="运动员身高（厘米），用于把像素速度近似换算成 m/s")
     a.add_argument("--no-cache", action="store_true",
                    help="不复用输出目录里的姿态缓存 pose_cache.npz（默认复用，改参数重跑很快）")
     f = sub.add_parser("frame", help="导出某一帧并画上像素坐标网格（用于手动指定 --bar / --calib）")
@@ -130,6 +134,22 @@ def run_analyze(args) -> dict:
                       caveats=res["caveats"], sections=squat.sections(res))
         drawer, freezes = squat.make_drawer(s, bar, res)
         extra_csv = {"bar_x": res["_bar_xy"][:, 0], "bar_y": res["_bar_xy"][:, 1]}
+    elif args.mode == "jump":
+        if args.calib:
+            x1, y1, x2, y2, cm = args.calib
+            px_per_m, src = float(np.hypot(x2 - x1, y2 - y1)) / (cm / 100.0), "two_points"
+        elif args.height_cm:
+            px_per_m, src = jump.scale_from_height(s, args.height_cm), "height"
+        else:
+            px_per_m, src = None, "none"
+        res = jump.analyze(s, px_per_m, src)
+        result.update(summary=res["summary"], events=res["events"], flags=res["flags"],
+                      caveats=res["caveats"], sections=jump.sections(res))
+        drawer, freezes = jump.make_drawer(s, res)
+        if "_series" in res:
+            extra_csv = {"hip_vx_px_s": res["_series"]["vx"],
+                         "contact_left": res["_series"]["contact_l"].astype(float),
+                         "contact_right": res["_series"]["contact_r"].astype(float)}
     else:
         result["summary"] = posemode.summarize(s)
         drawer, freezes = posemode.make_drawer(s), []

@@ -163,4 +163,4 @@ def banner(frame, text, color=YELLOW) -> None:
     tw = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, s, 2)[0][0]
     if tw > frame.shape[1] * 0.92:
         scale *= frame.shape[1] * 0.92 / tw
-    put_text(frame, text, (frame.shape[1] / 2, frame.shape[0] * 0.13), scale, color, anchor="ct")
+    put_text(frame, text, (frame.shape[1] / 2, frame.shape[0] * 0.24), scale, color, anchor="ct")

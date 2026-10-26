@@ -69,8 +69,15 @@ class Session:
         """(T, 2) trajectory of a near-side joint, e.g. ``joint("knee")``."""
         return self.xy[:, SIDES[self.side][name]]
 
+    def joint_of(self, side: str, name: str) -> np.ndarray:
+        return self.xy[:, SIDES[side][name]]
+
     def knee_angle(self) -> np.ndarray:
-        return geometry.joint_angle(self.joint("hip"), self.joint("knee"), self.joint("ankle"))
+        return self.knee_angle_of(self.side)
+
+    def knee_angle_of(self, side: str) -> np.ndarray:
+        return geometry.joint_angle(self.joint_of(side, "hip"), self.joint_of(side, "knee"),
+                                    self.joint_of(side, "ankle"))
 
     def hip_angle(self) -> np.ndarray:
         return geometry.joint_angle(self.joint("shoulder"), self.joint("hip"), self.joint("knee"))
