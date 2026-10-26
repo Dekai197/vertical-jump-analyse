@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+# user videos & outputs stay local
+*.mp4
+*.mov
+*.avi
+*.webm
+out/
+models/*.task

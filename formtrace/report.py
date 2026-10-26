@@ -1,0 +1,59 @@
+"""Human-readable (Chinese) Markdown report built from the JSON result."""
+
+from __future__ import annotations
+
+
+def _fmt(v, unit=""):
+    if v is None:
+        return "—"
+    if isinstance(v, float):
+        return f"{v:g}{unit}"
+    return f"{v}{unit}"
+
+
+def quality_notes(meta: dict) -> list[str]:
+    """Warnings about input quality that directly limit the accuracy of the numbers."""
+    notes = []
+    fps = meta["effective_fps"]
+    notes.append(f"时间分辨率：{fps:g} fps → 任何时间点的误差约 ±{1000 / fps:.0f} ms（±1 帧）。")
+    if fps < 59:
+        notes.append("帧率低于 60 fps：触地时间、制动瞬间这类短事件误差较大，建议用手机慢动作（120/240 fps）拍摄。")
+    if meta["timestamps_source"] != "pts":
+        notes.append("视频没有可用的逐帧时间戳，按标称帧率估算时间；可变帧率视频会因此产生时间误差。")
+    if meta["max_frame_gap_s"] > 1.6 / fps:
+        notes.append(f"检测到丢帧（最大帧间隔 {meta['max_frame_gap_s'] * 1000:.0f} ms），已按真实时间戳计算。")
+    if meta["pose_detection_rate"] < 0.9:
+        notes.append(f"只有 {meta['pose_detection_rate'] * 100:.0f}% 的帧检测到人体，缺失帧由插值补齐，结果可信度下降。")
+    notes.append("所有角度均为 2D 投影角：只有手机正对身体侧面、与运动平面垂直时才接近真实关节角。")
+    return notes
+
+
+def markdown(res: dict) -> str:
+    m = res["meta"]
+    lines = [f"# formtrace 分析报告（v{res['version']}，模式：{res['mode']}）", ""]
+    lines += [f"- 视频：`{m['video']}`  {m['resolution'][0]}×{m['resolution'][1]}，"
+              f"{m['frames']} 帧，{m['duration_s']} s，有效帧率 {m['effective_fps']} fps"
+              f"（标称 {m['nominal_fps']}）",
+              f"- 面向镜头的一侧：{'左' if m['camera_side'] == 'left' else '右'}侧（单侧指标均取此侧）",
+              f"- 处理耗时：姿态提取 {m['timings'].get('extract_s', '—')} s，"
+              f"渲染 {m['timings'].get('render_s', '—')} s", ""]
+    lines += ["## 结果", ""]
+    for k, v in res["summary"].items():
+        if isinstance(v, (list, dict)):
+            continue
+        lines.append(f"- {LABELS.get(k, k)}：{_fmt(v)}")
+    for section in res.get("sections", []):
+        lines += ["", f"### {section['title']}", ""] + section["lines"]
+    if res.get("flags"):
+        lines += ["", "## 提示（启发式判断，非诊断）", ""] + [f"- {f}" for f in res["flags"]]
+    lines += ["", "## 数据可信度", ""] + [f"- {n}" for n in quality_notes(m) + res.get("caveats", [])]
+    if res.get("files"):
+        lines += ["", "## 输出文件", ""] + [f"- {k}: `{v}`" for k, v in res["files"].items()]
+    return "\n".join(lines) + "\n"
+
+
+LABELS = {
+    "min_knee_angle_deg": "最小膝关节夹角（180°=伸直）",
+    "min_knee_angle_t_s": "出现时间 (s)",
+    "min_hip_angle_deg": "最小髋关节夹角",
+}

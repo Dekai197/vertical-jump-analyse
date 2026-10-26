@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "formtrace"
+dynamic = ["version"]
+description = "Lightweight motion-trajectory and force-moment analysis for phone videos (squat bar path, approach-jump plant)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "mediapipe>=0.10.14",
+    "opencv-contrib-python>=4.8",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+formtrace = "formtrace.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "formtrace.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["formtrace*"]
